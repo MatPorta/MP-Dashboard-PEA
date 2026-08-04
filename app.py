@@ -115,9 +115,36 @@ CACHE_TTL = 120  # secondes — refresh auto toutes les 2 minutes
 
 
 def fetch_quote(ticker: str):
-    """Récupère (cours, variation_intraday_%, historique_cloture_3mois) via Yahoo Finance,
-    en un seul appel (range=3mo/interval=1d) — le point courant sert à la fois pour le
-    cours affiché et pour le dernier point de la sparkline. Fallback query2 puis (None, None, [])."""
+    """Récupère (cours, variation_intraday_%) via Yahoo Finance — appel sans paramètre de
+    range, comme à l'origine. C'est la source la plus fiable pour previousClose/regularMarketPrice.
+    Fallback query2 puis (None, None)."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        url = f"https://{host}/v8/finance/chart/{ticker}"
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                result = data.get("chart", {}).get("result")
+                if result:
+                    meta = result[0]["meta"]
+                    price = meta.get("regularMarketPrice")
+                    prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+                    if price:
+                        price = round(float(price), 2)
+                        change_pct = None
+                        if prev_close:
+                            change_pct = round((price - float(prev_close)) / float(prev_close) * 100, 2)
+                        return price, change_pct
+        except Exception:
+            continue
+    return None, None
+
+
+def fetch_history_3mo(ticker: str):
+    """Récupère l'historique des clôtures sur 3 mois (appel dédié, séparé de fetch_quote,
+    pour ne jamais interférer avec le calcul de la variation intraday). Retourne une liste
+    de cours de clôture (vide si indisponible)."""
     headers = {"User-Agent": "Mozilla/5.0"}
     for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
         url = f"https://{host}/v8/finance/chart/{ticker}"
@@ -127,24 +154,13 @@ def fetch_quote(ticker: str):
                 data = r.json()
                 result = data.get("chart", {}).get("result")
                 if result:
-                    meta = result[0]["meta"]
-                    price = meta.get("regularMarketPrice")
-                    # previousClose = vraie clôture de la veille, toujours fiable quel que soit
-                    # le range demandé. chartPreviousClose devient trompeur avec range=3mo
-                    # (il pointe alors vers la clôture d'avant le début de la fenêtre de 3 mois),
-                    # d'où son usage uniquement en fallback.
-                    prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
                     quote = result[0].get("indicators", {}).get("quote", [{}])[0]
                     closes = [c for c in quote.get("close", []) if c is not None]
-                    if price:
-                        price = round(float(price), 2)
-                        change_pct = None
-                        if prev_close:
-                            change_pct = round((price - float(prev_close)) / float(prev_close) * 100, 2)
-                        return price, change_pct, closes
+                    if closes:
+                        return closes
         except Exception:
             continue
-    return None, None, []
+    return []
 
 
 def generate_sparkline(closes, width=110, height=30, pad=3):
@@ -202,7 +218,7 @@ def build_portfolio():
     live_count = 0
 
     for pos in POSITIONS:
-        cours, var_jour, closes = fetch_quote(pos["ticker"])
+        cours, var_jour = fetch_quote(pos["ticker"])
         source = "live"
         if cours is None:
             cours = pos["fallback"]
@@ -221,6 +237,8 @@ def build_portfolio():
         fiche = FICHES.get(pos["ticker"], {})
 
         # Mini-courbe de tendance sur 3 mois (sparkline)
+        # Mini-courbe de tendance sur 3 mois (sparkline) — appel Yahoo dédié et indépendant
+        closes = fetch_history_3mo(pos["ticker"])
         spark = generate_sparkline(closes)
 
         rows.append({
