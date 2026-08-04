@@ -533,7 +533,7 @@ TEMPLATE = """
       </div>
     </div>
     <div class="kpi">
-      <div class="label">Performance</div>
+      <div class="label">Performance depuis 2021</div>
       <div class="value {{ 'pos' if data.total_pv_pct >= 0 else 'neg' }}">
         {{ "+" if data.total_pv_pct >= 0 else "" }}{{ "%.1f"|format(data.total_pv_pct) }}%
       </div>
