@@ -427,7 +427,7 @@ PAGE = r"""<!DOCTYPE html>
 <div class="wrap">
   <header>
     <div>
-      <h1>PEA M. Porta · n° 017703412016</h1>
+      <h1>DAHSBOARD PEA M Porta</h1>
       <div class="sub" id="sub">Chargement…</div>
     </div>
     <button id="refresh">Actualiser les cours</button>
