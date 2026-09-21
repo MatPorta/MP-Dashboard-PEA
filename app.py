@@ -462,7 +462,7 @@ PAGE = r"""<!DOCTYPE html>
 <div class="wrap">
   <header>
     <div>
-      <h1>PEA M. Porta · n° 017703412016</h1>
+      <h1>Dashboard PEA M PORTA</h1>
       <div class="sub" id="sub">Chargement…</div>
     </div>
     <button id="refresh">Actualiser les cours</button>
